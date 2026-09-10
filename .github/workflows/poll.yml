@@ -1,0 +1,39 @@
+name: Poll SPOT feed and push to Gundi
+
+on:
+  schedule:
+    # Runs every 10 minutes. GitHub may delay this by a few minutes under load.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}  # lets you trigger it manually from the Actions tab to test
+
+permissions:
+  contents: write  # needed so the workflow can commit last_seen.json back
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run poller
+        env:
+          SPOT_FEED_URL: ${{ secrets.SPOT_FEED_URL }}
+          GUNDI_API_KEY: ${{ secrets.GUNDI_API_KEY }}
+        run: python poll_spot.py
+
+      - name: Commit updated state file
+        run: |
+          git config user.name "spot-gundi-bridge-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add last_seen.json
+          git diff --staged --quiet || git commit -m "Update last_seen timestamp"
+          git push
